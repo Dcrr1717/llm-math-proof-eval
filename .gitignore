@@ -1,0 +1,17 @@
+# secrets
+.env
+.env.*
+!.env.example
+
+# python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# live runs (the synthetic sample and report.md are committed)
+results/run-*.jsonl
+
+# lean / lake
+lean/.lake/
