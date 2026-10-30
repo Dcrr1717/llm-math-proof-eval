@@ -74,6 +74,7 @@ sample_results.jsonl        SYNTHETIC results (60 rows: 3 models x 20 problems)
 results/report.md           report rendered from the synthetic sample
 scripts/make_sample_results.py   seeded generator for the synthetic sample
 lean/                       Lean 4 + Mathlib proofs of NT-01, PRF-02, PRF-03
+reviews/strand_logrank/     proof review of two log-rank lemmas (STRAND), exact checks
 tests/                      offline pytest suite
 ```
 
