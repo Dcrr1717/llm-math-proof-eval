@@ -71,8 +71,10 @@ problems.jsonl              20 problems: id, topic, difficulty, format, statemen
 grader.py                   SymPy equivalence grader + self-tests (python grader.py)
 run_eval.py                 async runner, cost tracking, markdown report
 sample_results.jsonl        SYNTHETIC results (60 rows: 3 models x 20 problems)
-results/report.md           report rendered from the synthetic sample
+results/report.md           report of the live run of 2 Nov 2026
 scripts/make_sample_results.py   seeded generator for the synthetic sample
+proof_bench.py              proof benchmark: lemmas from recent papers, blind LLM judge
+results/proof_bench_report.md    aggregate proof-benchmark scores (items stay private)
 lean/                       Lean 4 + Mathlib proofs of NT-01, PRF-02, PRF-03
 reviews/strand_logrank/     proof review of two log-rank lemmas (STRAND), exact checks
 tests/                      offline pytest suite
@@ -120,20 +122,43 @@ any stored answer disagrees with its verifier.
 
 ## Results
 
-> The table below comes from **synthetic sample data** (`sample_results.jsonl`,
-> produced by `scripts/make_sample_results.py`). It demonstrates the report
-> format and cost accounting only. These are **not** measured model results.
-> Run `python run_eval.py --models ...` with an API key to replace it.
+Live run, 2 Nov 2026, effort `high`:
 
 | Model | Accuracy | Total cost | Cost / correct | Mean output tokens |
 |---|---|---|---|---|
-| `claude-opus-5-5` | _your run_ | _your run_ | _your run_ | _your run_ |
-| `claude-sonnet-5-5` | _your run_ | _your run_ | _your run_ | _your run_ |
-| `claude-haiku-5-5` | _your run_ | _your run_ | _your run_ | _your run_ |
+| `claude-opus-5-5` | 100% (20/20) | $0.2861 | $0.0143 | 676 |
+| `claude-sonnet-5-5` | 100% (20/20) | $0.0916 | $0.0046 | 419 |
+| `claude-haiku-5-5` | 100% (20/20) | $0.0089 | $0.0004 | 853 |
 
-The full synthetic report is in [`results/report.md`](results/report.md). It
-has accuracy by topic and difficulty, the grading-method breakdown, and every
-miss with its extracted answer next to the gold answer.
+The set is saturated: all three models solve every problem, so it now measures
+cost only. The full report is in [`results/report.md`](results/report.md); the
+synthetic sample (`sample_results.jsonl`) is kept so the pipeline runs without
+a key. The proof benchmark below is the harder follow-up.
+
+## Proof benchmark (private items)
+
+`proof_bench.py` asks each model to **prove** a lemma or proposition taken from a
+paper published in 2025-2026 in a peer-reviewed journal (JFA, Analysis & PDE,
+GAFA, PLMS, J. Math. Pures Appl., SIAM J. Appl. Algebra Geom., J. Appl. Comput.
+Topol., DCG, IMRN, Forum Math. Sigma, JCTA, JCTB, Combinatorica, CPC). Peer
+review filters the statements; most arXiv first versions are from the second half
+of 2025 or later, to limit contamination.
+
+- The solver sees only the definitions and the statement.
+- A judge model grades each proof **blind** (no model name) against the paper's
+  key steps and known pitfalls, accepting different routes if they are rigorous:
+  `correct` 1, `minor_gaps` 0.75, `major_gap` 0.25, `wrong` 0. A truncated or
+  refused answer scores 0.
+- Each proof is judged twice to measure judge consistency, and scores are split by
+  arXiv date as a contamination check.
+- Items, proofs and judgments are gitignored (`private/`); only
+  `results/proof_bench_report.md` is published.
+
+```bash
+python proof_bench.py solve --models claude-opus-5-5,claude-sonnet-5-5,claude-haiku-5-5
+python proof_bench.py judge --judge claude-opus-5-5 --repeats 2
+python proof_bench.py report
+```
 
 ## Formal verification (Lean 4)
 
