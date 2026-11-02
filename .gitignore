@@ -13,5 +13,9 @@ venv/
 # live runs (the synthetic sample and report.md are committed)
 results/run-*.jsonl
 
+# proof benchmark: items, proofs and judgments stay local so the set cannot leak
+# into training data; only results/proof_bench_report.md is published
+private/
+
 # lean / lake
 lean/.lake/

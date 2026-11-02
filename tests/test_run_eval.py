@@ -29,7 +29,7 @@ def test_haiku_long_prompt_tier():
 def test_report_from_sample_results(tmp_path):
     report = tmp_path / "report.md"
     assert run_eval.main(["--from-results", str(ROOT / "sample_results.jsonl"), "--report", str(report)]) == 0
-    text = report.read_text()
+    text = report.read_text(encoding="utf-8")
     assert "SYNTHETIC DEMO DATA" in text
     for model in ("claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"):
         assert f"`{model}`" in text
@@ -47,7 +47,7 @@ def test_sample_results_are_regraded_not_trusted():
 def test_limit_with_from_results(tmp_path):
     report = tmp_path / "r.md"
     run_eval.main(["--from-results", str(ROOT / "sample_results.jsonl"), "--limit", "3", "--report", str(report)])
-    assert "| `claude-opus-5-5` | 100% | 3/3 |" in report.read_text()
+    assert "| `claude-opus-5-5` | 100% | 3/3 |" in report.read_text(encoding="utf-8")
 
 
 def test_no_api_key_exits_cleanly():

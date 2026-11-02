@@ -17,7 +17,7 @@ import sympy as sp
 from grader import check_equivalence, parse_answer
 
 ROOT = Path(__file__).resolve().parents[1]
-PROBLEMS = [json.loads(l) for l in (ROOT / "problems.jsonl").read_text().splitlines() if l.strip()]
+PROBLEMS = [json.loads(l) for l in (ROOT / "problems.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
 BY_ID = {p["id"]: p for p in PROBLEMS}
 x, n, k = sp.symbols("x n k")
 
