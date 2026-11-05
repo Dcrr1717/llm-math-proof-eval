@@ -44,3 +44,34 @@ def test_report_aggregates(tmp_path, monkeypatch):
     assert "| m | 2 | 0.44 | 0/2 | 1 | $1.00 | $0.500 |" in out
     assert "identical verdict on 0/1" in out
     assert "| m | - | 0.44 (n=2) |" in out
+
+
+def test_report_second_judge_section(tmp_path, monkeypatch):
+    monkeypatch.setattr(pb, "ITEMS", tmp_path / "items.jsonl")
+    monkeypatch.setattr(pb, "SOLUTIONS", tmp_path / "solutions.jsonl")
+    monkeypatch.setattr(pb, "JUDGMENTS", tmp_path / "judgments.jsonl")
+    monkeypatch.setattr(pb, "REPORT", tmp_path / "report.md")
+    for i in "ab":
+        pb.append_jsonl(pb.ITEMS, {"id": i, "source": {"arxiv_v1": "2025-09-01"},
+                                   "statement": "s", "checkpoints": []})
+        pb.append_jsonl(pb.SOLUTIONS, {"id": i, "model": "m", "sample": 0,
+                                       "status": "ok", "cost_usd": 0.1, "text": "p"})
+        # primary judge: two repeats, both "correct"
+        for r in range(2):
+            pb.append_jsonl(pb.JUDGMENTS, {"id": i, "model": "m", "sample": 0,
+                                           "judge": "big", "repeat": r,
+                                           "verdict": "correct", "cost_usd": 0.05})
+    # second judge: agrees on a, disagrees on b
+    pb.append_jsonl(pb.JUDGMENTS, {"id": "a", "model": "m", "sample": 0, "judge": "small",
+                                   "repeat": 0, "verdict": "correct", "cost_usd": 0.01})
+    pb.append_jsonl(pb.JUDGMENTS, {"id": "b", "model": "m", "sample": 0, "judge": "small",
+                                   "repeat": 0, "verdict": "major_gap", "cost_usd": 0.01})
+    out = pb.report()
+    # the second judge does not enter the main score
+    assert "| m | 2 | 1.00 | 2/2 | 0 |" in out
+    assert "## Second judge (small)" in out
+    assert "1/2 proofs (50%)" in out
+    assert "| b | m | correct, correct | major_gap |" in out
+    assert "| m | 1.00 (n=2) | 0.62 (n=2) |" in out
+    rows = pb.load_jsonl(tmp_path / "report_second_judge.jsonl")
+    assert [r["agree"] for r in rows] == [True, False]

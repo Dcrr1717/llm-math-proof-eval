@@ -75,6 +75,7 @@ results/report.md           report of the live run of 2 Nov 2026
 scripts/make_sample_results.py   seeded generator for the synthetic sample
 proof_bench.py              proof benchmark: lemmas from recent papers, blind LLM judge
 results/proof_bench_report.md    aggregate proof-benchmark scores (items stay private)
+results/proof_bench_report_second_judge.jsonl   per-proof verdicts of the two judges
 lean/                       Lean 4 + Mathlib proofs of NT-01, PRF-02, PRF-03
 reviews/strand_logrank/     proof review of two log-rank lemmas (STRAND), exact checks
 tests/                      offline pytest suite
@@ -154,11 +155,26 @@ of 2025 or later, to limit contamination.
 - Items, proofs and judgments are gitignored (`private/`); only
   `results/proof_bench_report.md` is published.
 
+Run of 3 Nov 2026 (judge `claude-opus-5-5`, two repeats, effort `high`): Opus
+0.95 (21/22 fully correct, 1 truncated), Sonnet 0.86 (19/22, 3 truncated),
+Haiku 0.59 (13/22, 9 truncated at 64k output tokens). Every finished proof was
+graded `correct`, with identical verdicts on all 53/53 repeats. A second,
+independent judge (`claude-sonnet-5-5`, 5 Nov 2026, $1.97) agreed with Opus on
+53/53 proofs (100%), so the ranking is decided by which model finishes within
+the token budget, not by the grader. Details in
+[`results/proof_bench_report.md`](results/proof_bench_report.md).
+
 ```bash
 python proof_bench.py solve --models claude-opus-5-5,claude-sonnet-5-5,claude-haiku-5-5
 python proof_bench.py judge --judge claude-opus-5-5 --repeats 2
+python proof_bench.py judge --judge claude-sonnet-5-5 --repeats 1   # second judge
 python proof_bench.py report
 ```
+
+The report scores with the judge that has the most judgments (Opus); any other
+judge is reported separately as an agreement check, proof by proof, in a
+"Second judge" section and in `results/proof_bench_report_second_judge.jsonl`
+(ids and verdicts only).
 
 ## Formal verification (Lean 4)
 

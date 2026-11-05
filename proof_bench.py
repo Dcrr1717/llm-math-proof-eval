@@ -18,6 +18,7 @@ Examples
 --------
     python proof_bench.py solve --models claude-opus-5-5,claude-sonnet-5-5,claude-haiku-5-5
     python proof_bench.py judge --judge claude-opus-5-5 --repeats 2
+    python proof_bench.py judge --judge claude-sonnet-5-5 --repeats 1   # second judge
     python proof_bench.py report
 """
 
@@ -236,7 +237,15 @@ def report() -> str:
     items = {it["id"]: it for it in load_jsonl(ITEMS)}
     sols = {(s["id"], s["model"], s["sample"]): s
             for s in load_jsonl(SOLUTIONS) if s["status"] != "error"}
-    js = [j for j in load_jsonl(JUDGMENTS) if j.get("verdict")]
+    all_js = [j for j in load_jsonl(JUDGMENTS) if j.get("verdict")]
+
+    # the primary judge is the one with the most judgments; any other judge is
+    # reported separately, as an agreement check, and does not enter the scores
+    by_judge: dict[str, list[dict]] = defaultdict(list)
+    for j in all_js:
+        by_judge[j["judge"]].append(j)
+    primary = max(by_judge, key=lambda g: len(by_judge[g])) if by_judge else None
+    js = by_judge.get(primary, [])
 
     # one score per proof: the mean over judge repeats; a truncated or refused
     # answer is not a proof and scores 0
@@ -286,6 +295,65 @@ def report() -> str:
             cells.append(f"{sum(sum(per_proof[k]) / len(per_proof[k]) for k in ks) / len(ks):.2f}"
                          f" (n={len(ks)})" if ks else "-")
         lines.append(f"| {m} | {cells[0]} | {cells[1]} |")
+
+    # second judge(s): verdict agreement with the primary judge, proof by proof.
+    # A proof "agrees" when the second judge's verdict equals every verdict of
+    # the primary judge on it. The per-proof comparison (ids and verdicts only,
+    # no text) is written next to the report.
+    for other in sorted(g for g in by_judge if g != primary):
+        other_v: dict[tuple, list[str]] = defaultdict(list)
+        other_cost = 0.0
+        for j in by_judge[other]:
+            other_v[(j["id"], j["model"], j["sample"])].append(j["verdict"])
+            other_cost += j.get("cost_usd") or 0.0
+        shared = sorted(k for k in other_v if k in verdicts and verdicts[k] != ["no_proof"])
+        rows = []
+        for k in shared:
+            a, b = sorted(set(verdicts[k])), sorted(set(other_v[k]))
+            rows.append({"id": k[0], "model": k[1], "sample": k[2],
+                         "primary_judge": primary, "primary_verdicts": verdicts[k],
+                         "second_judge": other, "second_verdicts": other_v[k],
+                         "agree": a == b})
+        agree = sum(r["agree"] for r in rows)
+        lines += ["", f"## Second judge ({other})", "",
+                  f"Independent judge over the same proofs, {len(by_judge[other])} calls, "
+                  f"${other_cost:.2f}. Same verdict as the primary judge ({primary}) on "
+                  f"{agree}/{len(rows)} proofs "
+                  f"({100 * agree / len(rows):.0f}%)." if rows else
+                  f"Independent judge over the same proofs; no proof judged by both."]
+        if rows:
+            lines += ["", "| Model | Mean score ({primary}) | Mean score ({other}) |"
+                      .format(primary=primary, other=other), "|---|---|---|"]
+            for m in models:
+                rs = [r for r in rows if r["model"] == m]
+                if rs:
+                    mp = sum(sum(SCORE_OF[v] for v in r["primary_verdicts"])
+                             / len(r["primary_verdicts"]) for r in rs) / len(rs)
+                    mo = sum(sum(SCORE_OF[v] for v in r["second_verdicts"])
+                             / len(r["second_verdicts"]) for r in rs) / len(rs)
+                    lines.append(f"| {m} | {mp:.2f} (n={len(rs)}) | {mo:.2f} (n={len(rs)}) |")
+        disagreements = [r for r in rows if not r["agree"]]
+        if disagreements:
+            lines += ["", "Disagreements:", "",
+                      f"| Item | Model | {primary} | {other} |", "|---|---|---|---|"]
+            for r in disagreements:
+                lines.append(f"| {r['id']} | {r['model']} | "
+                             f"{', '.join(r['primary_verdicts'])} | "
+                             f"{', '.join(r['second_verdicts'])} |")
+        elif rows:
+            lines += ["", "No disagreements."]
+            if all(set(r["primary_verdicts"]) | set(r["second_verdicts"]) == {"correct"}
+                   for r in rows):
+                lines[-1] += (" Every finished proof got `correct` from both judges, so "
+                              "this agreement says nothing about how strict the judges "
+                              "are; the score differences between models come only from "
+                              "unfinished (truncated) answers.")
+        out = REPORT.with_name(REPORT.stem + "_second_judge.jsonl")
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("w", encoding="utf-8") as f:
+            for r in rows:
+                f.write(json.dumps(r) + "\n")
+        lines += ["", f"Per-proof verdicts of both judges: `{out.name}`."]
 
     text = "\n".join(lines) + "\n"
     REPORT.parent.mkdir(parents=True, exist_ok=True)
